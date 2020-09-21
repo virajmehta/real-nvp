@@ -10,10 +10,13 @@ import torch.backends.cudnn as cudnn
 import torch.utils.data as data
 import torchvision
 import torchvision.transforms as transforms
+from torchvision import datasets
 import util
+from datasets import MNISTZeroDataset, MNISTGaussianDataset
 
 from models import RealNVP, RealNVPLoss
 from tqdm import tqdm
+from ipdb import set_trace as db
 
 
 def main(args):
@@ -21,6 +24,7 @@ def main(args):
     start_epoch = 0
 
     # Note: No normalization applied, since RealNVP expects inputs in (0, 1).
+    '''
     transform_train = transforms.Compose([
         transforms.RandomHorizontalFlip(),
         transforms.ToTensor()
@@ -35,14 +39,36 @@ def main(args):
 
     testset = torchvision.datasets.CIFAR10(root='data', train=False, download=True, transform=transform_test)
     testloader = data.DataLoader(testset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
+    '''
+    if args.padding_type == 'none':
+        in_channels = 1
+        trainset = datasets.MNIST('../input_data', train=True, download=True,
+                                  transform=transforms.Compose([
+                                        transforms.ToTensor()]))
+                                        # transforms.Normalize((0.1307,), (0.3081,))]))
+        testset = datasets.MNIST('../input_data', train=False, download=True,
+                                 transform=transforms.Compose([
+                                        transforms.ToTensor()]))
+                                        # transforms.Normalize((0.1307,), (0.3081,))]))
+    elif args.padding_type == 'gaussian':
+        in_channels = 2
+        trainset = MNISTGaussianDataset()
+        testset = MNISTGaussianDataset(test=True)
+    elif args.padding_type == 'zero':
+        in_channels = 2
+        trainset = MNISTZeroDataset()
+        testset = MNISTZeroDataset(test=True)
 
+    trainloader = data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    testloader = data.DataLoader(testset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
     # Model
     print('Building model..')
-    net = RealNVP(num_scales=2, in_channels=3, mid_channels=64, num_blocks=8)
+    net = RealNVP(num_scales=2, in_channels=in_channels, mid_channels=64, num_blocks=8)
     net = net.to(device)
     if device == 'cuda':
         net = torch.nn.DataParallel(net, args.gpu_ids)
         cudnn.benchmark = args.benchmark
+        pass
 
     if args.resume:
         # Load checkpoint.
@@ -91,7 +117,7 @@ def sample(net, batch_size, device):
         batch_size (int): Number of samples to generate.
         device (torch.device): Device to use.
     """
-    z = torch.randn((batch_size, 3, 32, 32), dtype=torch.float32, device=device)
+    z = torch.randn((batch_size, 2, 28, 28), dtype=torch.float32, device=device)
     x, _ = net(z, reverse=True)
     x = torch.sigmoid(x)
 
@@ -127,13 +153,15 @@ def test(epoch, net, testloader, device, loss_fn, num_samples):
 
     # Save samples and data
     images = sample(net, num_samples, device)
+    if images.shape[1] == 2:
+        images = images[:, :1, :, :]
     os.makedirs('samples', exist_ok=True)
     images_concat = torchvision.utils.make_grid(images, nrow=int(num_samples ** 0.5), padding=2, pad_value=255)
     torchvision.utils.save_image(images_concat, 'samples/epoch_{}.png'.format(epoch))
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='RealNVP on CIFAR-10')
+    parser = argparse.ArgumentParser(description='RealNVP on MNIST')
 
     parser.add_argument('--batch_size', default=64, type=int, help='Batch size')
     parser.add_argument('--benchmark', action='store_true', help='Turn on CUDNN benchmarking')
@@ -146,6 +174,7 @@ if __name__ == '__main__':
     parser.add_argument('--resume', '-r', action='store_true', help='Resume from checkpoint')
     parser.add_argument('--weight_decay', default=5e-5, type=float,
                         help='L2 regularization (only applied to the weight norm scale factors)')
+    parser.add_argument('--padding_type', default='none', choices=('none', 'zero', 'gaussian'))
 
     best_loss = 0
 

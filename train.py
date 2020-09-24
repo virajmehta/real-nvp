@@ -10,14 +10,61 @@ import torch.backends.cudnn as cudnn
 import torch.utils.data as data
 import torchvision
 import torchvision.transforms as transforms
+import numpy as np
 from torchvision import datasets
 import util
-from datasets import MNISTZeroDataset, MNISTGaussianDataset
+from datasets import MNISTZeroDataset, MNISTGaussianDataset, CIFAR10ZeroDataset, CIFAR10GaussianDataset
 
 from models import RealNVP, RealNVPLoss
-from tqdm import tqdm
+from tqdm import tqdm, trange
 from torch.autograd.functional import jacobian
-from ipdb import set_trace as db
+
+
+def get_datasets(args):
+    if args.dataset == 'mnist':
+        if args.padding_type == 'none':
+            in_channels = 1
+            trainset = datasets.MNIST('../input_data', train=True, download=True,
+                                      transform=transforms.Compose([
+                                            transforms.ToTensor()]))
+                                            # transforms.Normalize((0.1307,), (0.3081,))]))
+            testset = datasets.MNIST('../input_data', train=False, download=True,
+                                     transform=transforms.Compose([
+                                            transforms.ToTensor()]))
+                                            # transforms.Normalize((0.1307,), (0.3081,))]))
+        elif args.padding_type == 'gaussian':
+            in_channels = 2
+            trainset = MNISTGaussianDataset()
+            testset = MNISTGaussianDataset(test=True)
+        elif args.padding_type == 'zero':
+            in_channels = 2
+            trainset = MNISTZeroDataset()
+            testset = MNISTZeroDataset(test=True)
+    elif args.dataset == 'cifar10':
+        if args.padding_type == 'none':
+            in_channels = 3
+            transform_train = transforms.Compose([
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor()
+            ])
+
+            transform_test = transforms.Compose([
+                transforms.ToTensor()
+            ])
+
+            trainset = torchvision.datasets.CIFAR10(root='data', train=True, download=True, transform=transform_train)
+
+            testset = torchvision.datasets.CIFAR10(root='data', train=False, download=True, transform=transform_test)
+        elif args.padding_type == 'zero':
+            trainset = CIFAR10ZeroDataset()
+            testset = CIFAR10ZeroDataset(test=True)
+        elif args.padding_type == 'gaussian':
+            trainset = CIFAR10GaussianDataset()
+            testset = CIFAR10GaussianDataset(test=True)
+
+    trainloader = data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
+    testloader = data.DataLoader(testset, batch_size=16, shuffle=False, num_workers=args.num_workers)
+    return trainloader, testloader, in_channels
 
 
 def main(args):
@@ -25,43 +72,7 @@ def main(args):
     start_epoch = 0
 
     # Note: No normalization applied, since RealNVP expects inputs in (0, 1).
-    '''
-    transform_train = transforms.Compose([
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor()
-    ])
-
-    transform_test = transforms.Compose([
-        transforms.ToTensor()
-    ])
-
-    trainset = torchvision.datasets.CIFAR10(root='data', train=True, download=True, transform=transform_train)
-    trainloader = data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-
-    testset = torchvision.datasets.CIFAR10(root='data', train=False, download=True, transform=transform_test)
-    testloader = data.DataLoader(testset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
-    '''
-    if args.padding_type == 'none':
-        in_channels = 1
-        trainset = datasets.MNIST('../input_data', train=True, download=True,
-                                  transform=transforms.Compose([
-                                        transforms.ToTensor()]))
-                                        # transforms.Normalize((0.1307,), (0.3081,))]))
-        testset = datasets.MNIST('../input_data', train=False, download=True,
-                                 transform=transforms.Compose([
-                                        transforms.ToTensor()]))
-                                        # transforms.Normalize((0.1307,), (0.3081,))]))
-    elif args.padding_type == 'gaussian':
-        in_channels = 2
-        trainset = MNISTGaussianDataset()
-        testset = MNISTGaussianDataset(test=True)
-    elif args.padding_type == 'zero':
-        in_channels = 2
-        trainset = MNISTZeroDataset()
-        testset = MNISTZeroDataset(test=True)
-
-    trainloader = data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
-    testloader = data.DataLoader(testset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers)
+    trainloader, testloader, in_channels = get_datasets(args)
     # Model
     print('Building model..')
     net = RealNVP(num_scales=2, in_channels=in_channels, mid_channels=64, num_blocks=8)
@@ -127,21 +138,29 @@ def sample(net, batch_size, device, in_channels):
 
 def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels):
     global best_loss
+    global mean_conds
     net.eval()
     loss_meter = util.AverageMeter()
-    evals = []
-    with torch.no_grad():
-        with tqdm(total=len(testloader.dataset)) as progress_bar:
-            for x, _ in testloader:
-                x = x.to(device)
+    with tqdm(total=len(testloader.dataset)) as progress_bar:
+        for x, _ in testloader:
+            x = x.to(device)
+            with torch.no_grad():
                 z, sldj = net(x, reverse=False)
-                jac = jacobian(net, z)
-                db()
                 loss = loss_fn(z, sldj)
                 loss_meter.update(loss.item(), x.size(0))
                 progress_bar.set_postfix(loss=loss_meter.avg,
                                          bpd=util.bits_per_dim(x, loss_meter.avg))
                 progress_bar.update(x.size(0))
+
+    conds = []
+    for i in trange(x.shape[0]):
+        jac = jacobian(net, x[i:i+1, ...])[0]
+        side = jac.shape[2]
+        jac = jac.reshape((side * side, side * side))
+        cond = np.linalg.cond(jac.cpu().numpy())
+        conds.append(cond)
+    mean_conds.append(np.mean(conds))
+    print(f"Mean of Condition Numbers: {mean_conds[-1]}")
 
     # Save checkpoint
     if loss_meter.avg < best_loss:
@@ -162,11 +181,13 @@ def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels):
     os.makedirs('samples', exist_ok=True)
     images_concat = torchvision.utils.make_grid(images, nrow=int(num_samples ** 0.5), padding=2, pad_value=255)
     torchvision.utils.save_image(images_concat, 'samples/epoch_{}.png'.format(epoch))
+    np.save('samples/mean_conds', np.array(mean_conds))
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='RealNVP on MNIST')
 
+    parser.add_argument('--dataset', choices=['mnist', 'cifar10'], default='mnist')
     parser.add_argument('--batch_size', default=64, type=int, help='Batch size')
     parser.add_argument('--benchmark', action='store_true', help='Turn on CUDNN benchmarking')
     parser.add_argument('--gpu_ids', default='[0]', type=eval, help='IDs of GPUs to use')
@@ -181,5 +202,6 @@ if __name__ == '__main__':
     parser.add_argument('--padding_type', default='none', choices=('none', 'zero', 'gaussian'))
 
     best_loss = 0
+    mean_conds = []
 
     main(parser.parse_args())

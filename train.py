@@ -27,11 +27,9 @@ def get_datasets(args):
             trainset = datasets.MNIST('../input_data', train=True, download=True,
                                       transform=transforms.Compose([
                                             transforms.ToTensor()]))
-                                            # transforms.Normalize((0.1307,), (0.3081,))]))
             testset = datasets.MNIST('../input_data', train=False, download=True,
                                      transform=transforms.Compose([
                                             transforms.ToTensor()]))
-                                            # transforms.Normalize((0.1307,), (0.3081,))]))
         elif args.padding_type == 'gaussian':
             in_channels = 2
             trainset = MNISTGaussianDataset()
@@ -177,9 +175,9 @@ def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels):
     # Save samples and data
     images = sample(net, num_samples, device, in_channels)
     if images.shape[1] == 2:
-        # TODO: this is messed up
-        raise ValueError(f"TODO: do this better")
         images = images[:, :1, :, :]
+    if images.shape[1] == 6:
+        images = images[:, :3, :, :]
     os.makedirs('samples', exist_ok=True)
     images_concat = torchvision.utils.make_grid(images, nrow=int(num_samples ** 0.5), padding=2, pad_value=255)
     torchvision.utils.save_image(images_concat, 'samples/epoch_{}.png'.format(epoch))

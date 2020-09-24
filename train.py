@@ -177,6 +177,8 @@ def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels):
     # Save samples and data
     images = sample(net, num_samples, device, in_channels)
     if images.shape[1] == 2:
+        # TODO: this is messed up
+        raise ValueError(f"TODO: do this better")
         images = images[:, :1, :, :]
     os.makedirs('samples', exist_ok=True)
     images_concat = torchvision.utils.make_grid(images, nrow=int(num_samples ** 0.5), padding=2, pad_value=255)

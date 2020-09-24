@@ -34,13 +34,13 @@ class MNISTZeroDataset(torch.utils.data.Dataset):
         if test:
             self.base_dataset = datasets.MNIST('../input_data', train=False, download=True,
                                                transform=transforms.Compose([
-                                                    transforms.ToTensor(),
-                                                    transforms.Normalize((0.1307,), (0.3081,))]))
+                                                    transforms.ToTensor()]))
+                                                    # transforms.Normalize((0.1307,), (0.3081,))]))
         else:
             self.base_dataset = datasets.MNIST('../input_data', train=True, download=True,
                                                transform=transforms.Compose([
-                                                    transforms.ToTensor(),
-                                                    transforms.Normalize((0.1307,), (0.3081,))]))
+                                                    transforms.ToTensor()]))
+                                                    # transforms.Normalize((0.1307,), (0.3081,))]))
 
     def __len__(self):
         return len(self.base_dataset)

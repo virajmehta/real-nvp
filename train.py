@@ -87,7 +87,7 @@ def main(args):
 
     for epoch in range(start_epoch, start_epoch + args.num_epochs):
         train(epoch, net, trainloader, device, optimizer, loss_fn, args.max_grad_norm)
-        test(epoch, net, testloader, device, loss_fn, args.num_samples)
+        test(epoch, net, testloader, device, loss_fn, args.num_samples, in_channels)
 
 
 def train(epoch, net, trainloader, device, optimizer, loss_fn, max_grad_norm):
@@ -110,7 +110,7 @@ def train(epoch, net, trainloader, device, optimizer, loss_fn, max_grad_norm):
             progress_bar.update(x.size(0))
 
 
-def sample(net, batch_size, device):
+def sample(net, batch_size, device, in_channels):
     """Sample from RealNVP model.
 
     Args:
@@ -118,14 +118,14 @@ def sample(net, batch_size, device):
         batch_size (int): Number of samples to generate.
         device (torch.device): Device to use.
     """
-    z = torch.randn((batch_size, 2, 28, 28), dtype=torch.float32, device=device)
+    z = torch.randn((batch_size, in_channels, 28, 28), dtype=torch.float32, device=device)
     x, _ = net(z, reverse=True)
     x = torch.sigmoid(x)
 
     return x
 
 
-def test(epoch, net, testloader, device, loss_fn, num_samples):
+def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels):
     global best_loss
     net.eval()
     loss_meter = util.AverageMeter()
@@ -156,7 +156,7 @@ def test(epoch, net, testloader, device, loss_fn, num_samples):
         best_loss = loss_meter.avg
 
     # Save samples and data
-    images = sample(net, num_samples, device)
+    images = sample(net, num_samples, device, in_channels)
     if images.shape[1] == 2:
         images = images[:, :1, :, :]
     os.makedirs('samples', exist_ok=True)

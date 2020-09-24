@@ -16,6 +16,7 @@ from datasets import MNISTZeroDataset, MNISTGaussianDataset
 
 from models import RealNVP, RealNVPLoss
 from tqdm import tqdm
+from torch.autograd.functional import jacobian
 from ipdb import set_trace as db
 
 
@@ -128,11 +129,14 @@ def test(epoch, net, testloader, device, loss_fn, num_samples):
     global best_loss
     net.eval()
     loss_meter = util.AverageMeter()
+    evals = []
     with torch.no_grad():
         with tqdm(total=len(testloader.dataset)) as progress_bar:
             for x, _ in testloader:
                 x = x.to(device)
                 z, sldj = net(x, reverse=False)
+                jac = jacobian(net, z)
+                db()
                 loss = loss_fn(z, sldj)
                 loss_meter.update(loss.item(), x.size(0))
                 progress_bar.set_postfix(loss=loss_meter.avg,

@@ -192,7 +192,7 @@ def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='RealNVP on MNIST')
-
+    parser.add_argument('name', help="The name of the experiment. Results go in data/{name}")
     parser.add_argument('--dataset', choices=['mnist', 'cifar10'], default='mnist')
     parser.add_argument('--batch_size', default=64, type=int, help='Batch size')
     parser.add_argument('--benchmark', action='store_true', help='Turn on CUDNN benchmarking')

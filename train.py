@@ -3,7 +3,6 @@
 Train script adapted from: https://github.com/kuangliu/pytorch-cifar/
 """
 import argparse
-import os
 import torch
 import torch.optim as optim
 import torch.backends.cudnn as cudnn
@@ -66,6 +65,7 @@ def get_datasets(args):
 
 
 def main(args):
+    base_path = util.make_directory(args.name, args.ow)
     device = 'cuda' if torch.cuda.is_available() and len(args.gpu_ids) > 0 else 'cpu'
     start_epoch = 0
 
@@ -82,9 +82,10 @@ def main(args):
 
     if args.resume:
         # Load checkpoint.
-        print('Resuming from checkpoint at ckpts/best.pth.tar...')
-        assert os.path.isdir('ckpts'), 'Error: no checkpoint directory found!'
-        checkpoint = torch.load('ckpts/best.pth.tar')
+        ckpt_path = base_path / 'ckpts'
+        best_path_ckpt = ckpt_path / 'best.pth.tar'
+        print(f'Resuming from checkpoint at {best_path_ckpt}')
+        checkpoint = torch.load(best_path_ckpt)
         net.load_state_dict(checkpoint['net'])
         global best_loss
         best_loss = checkpoint['test_loss']
@@ -96,7 +97,7 @@ def main(args):
 
     for epoch in range(start_epoch, start_epoch + args.num_epochs):
         train(epoch, net, trainloader, device, optimizer, loss_fn, args.max_grad_norm)
-        test(epoch, net, testloader, device, loss_fn, args.num_samples, in_channels)
+        test(epoch, net, testloader, device, loss_fn, args.num_samples, in_channels, base_path)
 
 
 def train(epoch, net, trainloader, device, optimizer, loss_fn, max_grad_norm):
@@ -134,7 +135,7 @@ def sample(net, batch_size, device, in_channels):
     return x
 
 
-def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels):
+def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base_path):
     global best_loss
     global mean_conds
     net.eval()
@@ -168,8 +169,10 @@ def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels):
             'test_loss': loss_meter.avg,
             'epoch': epoch,
         }
-        os.makedirs('ckpts', exist_ok=True)
-        torch.save(state, 'ckpts/best.pth.tar')
+        ckpt_path = base_path / 'ckpts'
+        ckpt_path.mkdir(exist_ok=True)
+        best_path_ckpt = ckpt_path / 'best.pth.tar'
+        torch.save(state, best_path_ckpt)
         best_loss = loss_meter.avg
 
     # Save samples and data
@@ -178,10 +181,13 @@ def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels):
         images = images[:, :1, :, :]
     if images.shape[1] == 6:
         images = images[:, :3, :, :]
-    os.makedirs('samples', exist_ok=True)
+    samples_path = base_path / 'samples'
+    samples_path.mkdir(exist_ok=True)
+    epoch_path = samples_path / f'epoch_{epoch}.png'
+    conds_path = base_path / 'mean_conds.npy'
     images_concat = torchvision.utils.make_grid(images, nrow=int(num_samples ** 0.5), padding=2, pad_value=255)
-    torchvision.utils.save_image(images_concat, 'samples/epoch_{}.png'.format(epoch))
-    np.save('samples/mean_conds', np.array(mean_conds))
+    torchvision.utils.save_image(images_concat, epoch_path)
+    np.save(conds_path, np.array(mean_conds))
 
 
 if __name__ == '__main__':
@@ -200,6 +206,7 @@ if __name__ == '__main__':
     parser.add_argument('--weight_decay', default=5e-5, type=float,
                         help='L2 regularization (only applied to the weight norm scale factors)')
     parser.add_argument('--padding_type', default='none', choices=('none', 'zero', 'gaussian'))
+    parser.add_argument('-ow', action='store_true', help="Overwrite data in directory")
 
     best_loss = 0
     mean_conds = []

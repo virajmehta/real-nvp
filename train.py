@@ -49,14 +49,16 @@ def get_datasets(args):
                 transforms.ToTensor()
             ])
 
-            trainset = torchvision.datasets.CIFAR10(root='data', train=True, download=True, transform=transform_train)
+            trainset = torchvision.datasets.CIFAR10(root='../input_data', train=True, download=True, transform=transform_train)
 
-            testset = torchvision.datasets.CIFAR10(root='data', train=False, download=True, transform=transform_test)
+            testset = torchvision.datasets.CIFAR10(root='../input_data', train=False, download=True, transform=transform_test)
         elif args.padding_type == 'zero':
+            in_channels = 6
             trainset = CIFAR10ZeroDataset()
             testset = CIFAR10ZeroDataset(test=True)
         elif args.padding_type == 'gaussian':
             trainset = CIFAR10GaussianDataset()
+            in_channels = 6
             testset = CIFAR10GaussianDataset(test=True)
 
     trainloader = data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
@@ -155,7 +157,8 @@ def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base
     for i in trange(x.shape[0]):
         jac = jacobian(net, x[i:i+1, ...])[0]
         side = jac.shape[2]
-        jac = jac.reshape((side * side, side * side))
+        channels = jac.shape[1]
+        jac = jac.reshape((channels * side * side, channels * side * side))
         cond = np.linalg.cond(jac.cpu().numpy())
         conds.append(cond)
     mean_conds.append(np.mean(conds))

@@ -6,3 +6,4 @@ data/
 logs/
 ckpts/
 samples/
+get_data.sh

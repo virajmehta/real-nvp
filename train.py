@@ -75,7 +75,7 @@ def main(args):
     trainloader, testloader, in_channels = get_datasets(args)
     # Model
     print('Building model..')
-    net = RealNVP(num_scales=2, in_channels=in_channels, mid_channels=64, num_blocks=8)
+    net = RealNVP(num_scales=args.num_scales, in_channels=in_channels, mid_channels=64, num_blocks=args.num_blocks)
     net = net.to(device)
     if device == 'cuda':
         net = torch.nn.DataParallel(net, args.gpu_ids)
@@ -204,6 +204,8 @@ if __name__ == '__main__':
     parser.add_argument('--max_grad_norm', type=float, default=100., help='Max gradient norm for clipping')
     parser.add_argument('--num_epochs', default=100, type=int, help='Number of epochs to train')
     parser.add_argument('--num_samples', default=64, type=int, help='Number of samples at test time')
+    parser.add_argument('--num_blocks', default=8, type=int, help='Number of residual blocks in s or t nets')
+    parser.add_argument('--num_scales', default=2, type=int, help='Number of scale / squeeze transformations in this')
     parser.add_argument('--num_workers', default=8, type=int, help='Number of data loader threads')
     parser.add_argument('--resume', '-r', action='store_true', help='Resume from checkpoint')
     parser.add_argument('--weight_decay', default=5e-5, type=float,

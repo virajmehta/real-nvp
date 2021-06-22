@@ -1,1 +1,1 @@
-from models.mlp_acvae.mlp_acvae import MLP_ACVAE
+from models.mlp_acvae.mlp_acvae import MLP_ACVAE, VAELoss

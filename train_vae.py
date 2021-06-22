@@ -60,10 +60,11 @@ def get_datasets(args):
             trainset = CIFAR10GaussianDataset()
             in_channels = 6
             testset = CIFAR10GaussianDataset(test=True)
+    shape = trainset[0][0].shape
 
     trainloader = data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     testloader = data.DataLoader(testset, batch_size=16, shuffle=False, num_workers=args.num_workers)
-    return trainloader, testloader, in_channels
+    return trainloader, testloader, in_channels, shape
 
 
 def main(args):
@@ -72,10 +73,12 @@ def main(args):
     start_epoch = 0
 
     # Note: No normalization applied, since RealNVP expects inputs in (0, 1).
-    trainloader, testloader, in_channels = get_datasets(args)
+    trainloader, testloader, in_channels, shape = get_datasets(args)
+
     # Model
     print('Building model..')
-    net = MLP_ACVAE(num_scales=args.num_scales, in_channels=in_channels, mid_channels=64, num_blocks=args.num_blocks)
+    net = MLP_ACVAE(shape, num_scales=args.num_scales, in_channels=in_channels, mid_channels=64,
+                    num_blocks=args.num_blocks)
     net = net.to(device)
     if device == 'cuda':
         net = torch.nn.DataParallel(net, args.gpu_ids)
@@ -93,7 +96,7 @@ def main(args):
         best_loss = checkpoint['test_loss']
         start_epoch = checkpoint['epoch']
 
-    loss_fn = VAELoss()
+    loss_fn = VAELoss
     param_groups = util.get_param_groups(net, args.weight_decay, norm_suffix='weight_g')
     optimizer = optim.Adam(param_groups, lr=args.lr)
 
@@ -105,20 +108,23 @@ def main(args):
 def train(epoch, net, trainloader, device, optimizer, loss_fn, max_grad_norm):
     print('\nEpoch: %d' % epoch)
     net.train()
-    loss_meter = util.AverageMeter()
+    loss_meters = [util.AverageMeter() for _ in range(3)]
     with tqdm(total=len(trainloader.dataset)) as progress_bar:
         for x, _ in trainloader:
             x = x.to(device)
             optimizer.zero_grad()
-            x_hat, mu, logvar = net(x, reverse=False)
-            loss = loss_fn(x, x_hat, mu, logvar)
-            loss_meter.update(loss.item(), x.size(0))
+            x_hat, mu, logvar = net(x)
+            loss, reconstruction_loss, kl_loss = loss_fn(x, x_hat, mu, logvar)
+            loss_meters[0].update(loss.item(), x.size(0))
+            loss_meters[1].update(reconstruction_loss.item(), x.size(0))
+            loss_meters[2].update(kl_loss.item(), x.size(0))
             loss.backward()
             util.clip_grad_norm(optimizer, max_grad_norm)
             optimizer.step()
 
-            progress_bar.set_postfix(loss=loss_meter.avg,
-                                     bpd=util.bits_per_dim(x, loss_meter.avg))
+            progress_bar.set_postfix(loss=loss_meters[0].avg,
+                                     rc_loss=loss_meters[1].avg,
+                                     kl_loss=loss_meters[2].avg)
             progress_bar.update(x.size(0))
 
 
@@ -141,16 +147,19 @@ def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base
     global best_loss
     global mean_conds
     net.eval()
-    loss_meter = util.AverageMeter()
+    loss_meters = [util.AverageMeter() for _ in range(3)]
     with tqdm(total=len(testloader.dataset)) as progress_bar:
         for x, _ in testloader:
             x = x.to(device)
             with torch.no_grad():
-                z, sldj = net(x, reverse=False)
-                loss = loss_fn(z, sldj)
-                loss_meter.update(loss.item(), x.size(0))
-                progress_bar.set_postfix(loss=loss_meter.avg,
-                                         bpd=util.bits_per_dim(x, loss_meter.avg))
+                x_hat, mu, logvar = net(x)
+                loss, reconstruction_loss, kl_loss = loss_fn(x, x_hat, mu, logvar)
+                loss_meters[0].update(loss.item(), x.size(0))
+                loss_meters[1].update(reconstruction_loss.item(), x.size(0))
+                loss_meters[2].update(kl_loss.item(), x.size(0))
+                progress_bar.set_postfix(loss=loss_meters[0].avg,
+                                         rc_loss=loss_meters[1].avg,
+                                         kl_loss=loss_meters[2].avg)
                 progress_bar.update(x.size(0))
 
     conds = []

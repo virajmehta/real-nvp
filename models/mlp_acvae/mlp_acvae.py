@@ -1,13 +1,14 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 from models.real_nvp.real_nvp import RealNVP
 from models.resnet.resnet import ResNet
 from util import squeeze_2x2
 
 
-class ACVAEMLP(nn.Module):
+class MLP_ACVAE(nn.Module):
     """RealNVP Model
 
     Based on the paper:
@@ -22,11 +23,12 @@ class ACVAEMLP(nn.Module):
         num_blocks (int): Number of residual blocks in the s and t network of
         `Coupling` layers.
     """
-    def __init__(self, num_scales=2, in_channels=3, mid_channels=64, num_blocks=8, encoder_hidden_dim, latent_dim):
+    def __init__(self, shape, num_scales=2, in_channels=3, mid_channels=64, num_blocks=8):
         super().__init__()
         # Register data_constraint to pre-process images, not learnable
         self.register_buffer('data_constraint', torch.tensor([0.9], dtype=torch.float32))
-        self.latent_dim = latent_dim
+        self.shape = shape
+        self.latent_dim = np.product(shape)
         encoder_layers = [
                 ResNet(in_channels=in_channels,
                        mid_channels=mid_channels,
@@ -34,10 +36,10 @@ class ACVAEMLP(nn.Module):
                        num_blocks=num_blocks * 2,
                        kernel_size=3,
                        padding=1,
-                       False),
+                       double_after_norm=False),
                 nn.Flatten()
             ]
-        self.encoder = nn.Sequential(**encoder_layers)
+        self.encoder = nn.Sequential(*encoder_layers)
 
         self.decoder = RealNVP(num_scales=num_scales,
                                in_channels=in_channels,
@@ -62,7 +64,7 @@ class ACVAEMLP(nn.Module):
 
     def forward(self, x):
         mean, logvar = self.encode(x)
-        z = self.reparameterize(mean, logvar)
+        z = self.reparameterize(mean, logvar).reshape([-1] + list(self.shape))
         x_hat = self.decode(z)
         return x_hat, mean, logvar
 

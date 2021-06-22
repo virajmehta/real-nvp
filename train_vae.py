@@ -145,7 +145,6 @@ def sample(net, batch_size, device, in_channels):
 
 def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base_path):
     global best_loss
-    global mean_conds
     net.eval()
     loss_meters = [util.AverageMeter() for _ in range(3)]
     with tqdm(total=len(testloader.dataset)) as progress_bar:
@@ -162,19 +161,9 @@ def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base
                                          kl_loss=loss_meters[2].avg)
                 progress_bar.update(x.size(0))
 
-    conds = []
-    for i in trange(x.shape[0]):
-        jac = jacobian(net, x[i:i+1, ...])[0]
-        side = jac.shape[2]
-        channels = jac.shape[1]
-        jac = jac.reshape((channels * side * side, channels * side * side))
-        cond = np.linalg.cond(jac.cpu().numpy())
-        conds.append(cond)
-    mean_conds.append(np.mean(conds))
-    print(f"Mean of Condition Numbers: {mean_conds[-1]}")
 
     # Save checkpoint
-    if loss_meter.avg < best_loss:
+    if loss_meters[0].avg < best_loss:
         print('Saving...')
         state = {
             'net': net.state_dict(),
@@ -196,10 +185,8 @@ def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base
     samples_path = base_path / 'samples'
     samples_path.mkdir(exist_ok=True)
     epoch_path = samples_path / f'epoch_{epoch}.png'
-    conds_path = base_path / 'mean_conds.npy'
     images_concat = torchvision.utils.make_grid(images, nrow=int(num_samples ** 0.5), padding=2, pad_value=255)
     torchvision.utils.save_image(images_concat, epoch_path)
-    np.save(conds_path, np.array(mean_conds))
 
 
 if __name__ == '__main__':
@@ -223,6 +210,5 @@ if __name__ == '__main__':
     parser.add_argument('-ow', action='store_true', help="Overwrite data in directory")
 
     best_loss = 0
-    mean_conds = []
 
     main(parser.parse_args())

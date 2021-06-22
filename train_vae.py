@@ -14,7 +14,7 @@ from torchvision import datasets
 import util
 from datasets import MNISTZeroDataset, MNISTGaussianDataset, CIFAR10ZeroDataset, CIFAR10GaussianDataset
 
-from models import RealNVP, RealNVPLoss
+from models import MLP_ACVAE, VAELoss
 from tqdm import tqdm, trange
 from torch.autograd.functional import jacobian
 
@@ -75,7 +75,7 @@ def main(args):
     trainloader, testloader, in_channels = get_datasets(args)
     # Model
     print('Building model..')
-    net = RealNVP(num_scales=args.num_scales, in_channels=in_channels, mid_channels=64, num_blocks=args.num_blocks)
+    net = MLP_ACVAE(num_scales=args.num_scales, in_channels=in_channels, mid_channels=64, num_blocks=args.num_blocks)
     net = net.to(device)
     if device == 'cuda':
         net = torch.nn.DataParallel(net, args.gpu_ids)
@@ -93,7 +93,7 @@ def main(args):
         best_loss = checkpoint['test_loss']
         start_epoch = checkpoint['epoch']
 
-    loss_fn = RealNVPLoss()
+    loss_fn = VAELoss()
     param_groups = util.get_param_groups(net, args.weight_decay, norm_suffix='weight_g')
     optimizer = optim.Adam(param_groups, lr=args.lr)
 
@@ -110,8 +110,8 @@ def train(epoch, net, trainloader, device, optimizer, loss_fn, max_grad_norm):
         for x, _ in trainloader:
             x = x.to(device)
             optimizer.zero_grad()
-            z, sldj = net(x, reverse=False)
-            loss = loss_fn(z, sldj)
+            x_hat, mu, logvar = net(x, reverse=False)
+            loss = loss_fn(x, x_hat, mu, logvar)
             loss_meter.update(loss.item(), x.size(0))
             loss.backward()
             util.clip_grad_norm(optimizer, max_grad_norm)
@@ -131,7 +131,7 @@ def sample(net, batch_size, device, in_channels):
         device (torch.device): Device to use.
     """
     z = torch.randn((batch_size, in_channels, 28, 28), dtype=torch.float32, device=device)
-    x, _ = net(z, reverse=True)
+    x, _ = net.decode(z)
     x = torch.sigmoid(x)
 
     return x

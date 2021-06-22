@@ -52,7 +52,7 @@ class ACVAEMLP(nn.Module):
         return mean, logvar
 
     def decode(self, z):
-        return self.decoder(z, reverse=True)
+        return self.decoder(z, reverse=True)[0]
 
 
     def reparameterize(self, mean, logvar):
@@ -66,8 +66,8 @@ class ACVAEMLP(nn.Module):
         x_hat = self.decode(z)
         return x_hat, mean, logvar
 
-    def loss_fn(self, x_hat, x, mean, logvar):
-        reconstruction_loss = F.mse_loss(x_hat, x)
-        kld_loss = torch.mean(-0.5 * torch.sum(1 + logvar - mean ** 2 - logvar.exp(), dim=1), dim=0)
-        vae_loss = reconstruction_loss + kld_loss
-        return vae_loss, kld_loss, reconstruction_loss
+def VAELoss(x, x_hat, mean, logvar):
+    reconstruction_loss = F.mse_loss(x_hat, x)
+    kld_loss = torch.mean(-0.5 * torch.sum(1 + logvar - mean ** 2 - logvar.exp(), dim=1), dim=0)
+    vae_loss = reconstruction_loss + kld_loss
+    return vae_loss, kld_loss, reconstruction_loss

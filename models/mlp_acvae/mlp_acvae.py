@@ -68,7 +68,9 @@ class MLP_ACVAE(nn.Module):
         eps = torch.randn_like(std)
         return eps * std + mean
 
-    def forward(self, x):
+    def forward(self, x, sample=False):
+        if sample:
+            return self.decode(x)
         mean, logvar = self.encode(x)
         z = self.reparameterize(mean, logvar).reshape([-1] + list(self.shape))
         x_hat = self.decode(z)

@@ -1,11 +1,9 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
 
 from models.real_nvp.real_nvp import RealNVP
 from models.resnet.resnet import ResNet
-from util import squeeze_2x2
 
 
 class MLP_ACVAE(nn.Module):

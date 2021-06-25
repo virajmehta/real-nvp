@@ -141,7 +141,7 @@ def sample(net, batch_size, device, in_channels):
         device (torch.device): Device to use.
     """
     z = torch.randn((batch_size, in_channels, 28, 28), dtype=torch.float32, device=device)
-    x, _ = net.decode(z)
+    x = net(z, sample=True)
     x = torch.sigmoid(x)
 
     return x

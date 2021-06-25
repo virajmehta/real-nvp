@@ -14,9 +14,8 @@ from torchvision import datasets
 import util
 from datasets import MNISTZeroDataset, MNISTGaussianDataset, CIFAR10ZeroDataset, CIFAR10GaussianDataset
 
-from models import MLP_ACVAE, VAELoss
+from models import MLP_ACVAE, VAELoss, VAE, VAELossCE
 from tqdm import tqdm, trange
-from torch.autograd.functional import jacobian
 
 
 def get_datasets(args):
@@ -49,9 +48,11 @@ def get_datasets(args):
                 transforms.ToTensor()
             ])
 
-            trainset = torchvision.datasets.CIFAR10(root='../input_data', train=True, download=True, transform=transform_train)
+            trainset = torchvision.datasets.CIFAR10(root='../input_data', train=True, download=True,
+                                                    transform=transform_train)
 
-            testset = torchvision.datasets.CIFAR10(root='../input_data', train=False, download=True, transform=transform_test)
+            testset = torchvision.datasets.CIFAR10(root='../input_data', train=False, download=True,
+                                                   transform=transform_test)
         elif args.padding_type == 'zero':
             in_channels = 6
             trainset = CIFAR10ZeroDataset()
@@ -77,8 +78,11 @@ def main(args):
 
     # Model
     print('Building model..')
-    net = MLP_ACVAE(shape, num_scales=args.num_scales, in_channels=in_channels, mid_channels=64,
-                    num_blocks=args.num_blocks)
+    if args.model == 'MLP_ACVAE':
+        net = MLP_ACVAE(shape, num_scales=args.num_scales, in_channels=in_channels, mid_channels=64,
+                        num_blocks=args.num_blocks)
+    elif args.model == 'VAE':
+        net = VAE(shape, args.latent_dim, args.hidden_size)
     net = net.to(device)
     if device == 'cuda':
         net = torch.nn.DataParallel(net, args.gpu_ids)
@@ -96,7 +100,7 @@ def main(args):
         best_loss = checkpoint['test_loss']
         start_epoch = checkpoint['epoch']
 
-    loss_fn = VAELoss
+    loss_fn = VAELoss if not args.use_ce_loss else VAELossCE
     param_groups = util.get_param_groups(net, args.weight_decay, norm_suffix='weight_g')
     optimizer = optim.Adam(param_groups, lr=args.lr)
 
@@ -161,20 +165,19 @@ def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base
                                          kl_loss=loss_meters[2].avg)
                 progress_bar.update(x.size(0))
 
-
     # Save checkpoint
     if loss_meters[0].avg < best_loss:
         print('Saving...')
         state = {
             'net': net.state_dict(),
-            'test_loss': loss_meter.avg,
+            'test_loss': loss_meters[0].avg,
             'epoch': epoch,
         }
         ckpt_path = base_path / 'ckpts'
         ckpt_path.mkdir(exist_ok=True)
         best_path_ckpt = ckpt_path / 'best.pth.tar'
         torch.save(state, best_path_ckpt)
-        best_loss = loss_meter.avg
+        best_loss = loss_meters[0].avg
 
     # Save samples and data
     images = sample(net, num_samples, device, in_channels)
@@ -203,11 +206,15 @@ if __name__ == '__main__':
     parser.add_argument('--num_blocks', default=8, type=int, help='Number of residual blocks in s or t nets')
     parser.add_argument('--num_scales', default=2, type=int, help='Number of scale / squeeze transformations in this')
     parser.add_argument('--num_workers', default=8, type=int, help='Number of data loader threads')
+    parser.add_argument('--use_ce_loss', '-ce', action='store_true', help='Use the cross-entropy loss')
+    parser.add_argument('--model', default='MLP_ACVAE', choices=['VAE', 'ACVAE'])
     parser.add_argument('--resume', '-r', action='store_true', help='Resume from checkpoint')
     parser.add_argument('--weight_decay', default=5e-5, type=float,
                         help='L2 regularization (only applied to the weight norm scale factors)')
     parser.add_argument('--padding_type', default='none', choices=('none', 'zero', 'gaussian'))
     parser.add_argument('-ow', action='store_true', help="Overwrite data in directory")
+    parser.add_argument('--latent_dim', '-ld', type=int, default=20, help="Only applies to traditional VAE")
+    parser.add_argument('--hidden_size', '-hs', type=int, default=128)
 
     best_loss = 0
 

@@ -10,6 +10,7 @@ class VAE(nn.Module):
         self.latent_dim = latent_dim
         self.shape = shape
         self.input_size = np.product(shape)
+        self.hidden_size = hidden_size
         encoder_layers = [
                 nn.Flatten(),
                 nn.Linear(self.input_size, self.hidden_size),
@@ -32,7 +33,7 @@ class VAE(nn.Module):
         return mean, logvar
 
     def decode(self, z):
-        flat_output = self.decoder(z, reverse=True)[0]
+        flat_output = self.decoder(z)
         return flat_output.reshape([-1] + list(self.shape))
 
     def reparameterize(self, mean, logvar):
@@ -44,7 +45,7 @@ class VAE(nn.Module):
         if sample:
             return self.decode(x)
         mean, logvar = self.encode(x)
-        z = self.reparameterize(mean, logvar).reshape([-1] + list(self.shape))
+        z = self.reparameterize(mean, logvar)
         x_hat = self.decode(z)
         return x_hat, mean, logvar
 

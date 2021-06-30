@@ -106,7 +106,7 @@ def main(args):
 
     for epoch in range(start_epoch, start_epoch + args.num_epochs):
         train(epoch, net, trainloader, device, optimizer, loss_fn, args.max_grad_norm)
-        test(epoch, net, testloader, device, loss_fn, args.num_samples, in_channels, base_path)
+        test(epoch, net, testloader, device, loss_fn, args.num_samples, in_channels, base_path, args)
 
 
 def train(epoch, net, trainloader, device, optimizer, loss_fn, max_grad_norm):
@@ -132,7 +132,7 @@ def train(epoch, net, trainloader, device, optimizer, loss_fn, max_grad_norm):
             progress_bar.update(x.size(0))
 
 
-def sample(net, batch_size, device, in_channels):
+def sample(net, batch_size, device, in_channels, sample_latent=None):
     """Sample from RealNVP model.
 
     Args:
@@ -140,14 +140,16 @@ def sample(net, batch_size, device, in_channels):
         batch_size (int): Number of samples to generate.
         device (torch.device): Device to use.
     """
-    z = torch.randn((batch_size, in_channels, 28, 28), dtype=torch.float32, device=device)
+    if sample_latent is not None:
+        z = torch.randn((batch_size, sample_latent), dtype=torch.float32, device=device)
+    else:
+        z = torch.randn((batch_size, in_channels, 28, 28), dtype=torch.float32, device=device)
     x = net(z, sample=True)
-    x = torch.sigmoid(x)
 
     return x
 
 
-def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base_path):
+def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base_path, args):
     global best_loss
     net.eval()
     loss_meters = [util.AverageMeter() for _ in range(3)]
@@ -180,7 +182,8 @@ def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base
         best_loss = loss_meters[0].avg
 
     # Save samples and data
-    images = sample(net, num_samples, device, in_channels)
+    sample_latent = args.latent_dim if args.model == 'VAE' else None
+    images = sample(net, num_samples, device, in_channels, sample_latent)
     if images.shape[1] == 2:
         images = images[:, :1, :, :]
     if images.shape[1] == 6:

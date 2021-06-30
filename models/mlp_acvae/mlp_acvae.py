@@ -43,7 +43,7 @@ class MLP_ACVAE(nn.Module):
                     nn.Flatten(),
                     nn.Linear(self.latent_dim, self.latent_dim),
                     nn.ReLU(),
-                    nn.Linear(self.latent_dim, self.latent_dim),
+                    nn.Linear(self.latent_dim, 2 * self.latent_dim),
                 ]
         self.encoder = nn.Sequential(*encoder_layers)
 

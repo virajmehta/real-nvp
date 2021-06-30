@@ -50,8 +50,8 @@ class VAE(nn.Module):
         return x_hat, mean, logvar
 
 
-def VAELoss(x, x_hat, mean, logvar):
-    reconstruction_loss = F.mse_loss(x_hat, x)
+def VAELoss(x, x_hat, mean, logvar, output_var=1e-4):
+    reconstruction_loss = F.mse_loss(x_hat, x) / output_var
     kld_loss = torch.mean(-0.5 * torch.sum(1 + logvar - mean ** 2 - logvar.exp(), dim=1), dim=0)
     vae_loss = reconstruction_loss + kld_loss
     return vae_loss, kld_loss, reconstruction_loss

@@ -78,7 +78,7 @@ def main(args):
 
     # Model
     print('Building model..')
-    if args.model == 'MLP_ACVAE':
+    if args.model == 'ACVAE':
         net = MLP_ACVAE(shape, num_scales=args.num_scales, in_channels=in_channels, mid_channels=64,
                         num_blocks=args.num_blocks)
     elif args.model == 'VAE':

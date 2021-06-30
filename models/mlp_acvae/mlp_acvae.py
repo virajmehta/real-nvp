@@ -51,6 +51,7 @@ class MLP_ACVAE(nn.Module):
                                in_channels=in_channels,
                                mid_channels=mid_channels,
                                num_blocks=num_blocks)
+        self.sigmoid = nn.Sigmoid()
 
     def encode(self, x):
         out = self.encoder(x)
@@ -59,7 +60,7 @@ class MLP_ACVAE(nn.Module):
         return mean, logvar
 
     def decode(self, z):
-        return self.decoder(z, reverse=True)[0]
+        return self.sigmoid(self.decoder(z, reverse=True)[0])
 
     def reparameterize(self, mean, logvar):
         std = torch.exp(0.5 * logvar)

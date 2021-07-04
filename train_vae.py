@@ -216,8 +216,8 @@ if __name__ == '__main__':
                         help='L2 regularization (only applied to the weight norm scale factors)')
     parser.add_argument('--padding_type', default='none', choices=('none', 'zero', 'gaussian'))
     parser.add_argument('-ow', action='store_true', help="Overwrite data in directory")
-    parser.add_argument('--latent_dim', '-ld', type=int, default=20, help="Only applies to traditional VAE")
-    parser.add_argument('--hidden_size', '-hs', type=int, default=128)
+    parser.add_argument('--latent_dim', '-ld', type=int, default=10, help="Only applies to traditional VAE")
+    parser.add_argument('--hidden_size', '-hs', type=str, default="512|256")
 
     best_loss = 0
 

@@ -12,7 +12,7 @@ import torchvision.transforms as transforms
 import numpy as np
 from torchvision import datasets
 import util
-from datasets import MNISTZeroDataset, MNISTGaussianDataset, CIFAR10ZeroDataset, CIFAR10GaussianDataset
+from datasets import MNISTZeroDataset, MNISTGaussianDataset, CIFAR10ZeroDataset, CIFAR10GaussianDataset, TwoMoonsPaddedDataset
 
 from models import MLP_ACVAE, VAELoss, VAE, VAELossCE
 from tqdm import tqdm, trange
@@ -61,6 +61,10 @@ def get_datasets(args):
             trainset = CIFAR10GaussianDataset()
             in_channels = 6
             testset = CIFAR10GaussianDataset(test=True)
+    elif args.dataset == '2moons':
+        trainloader = TwoMoonsPaddedDataset(args.n_data, args.data_dim)
+        testloader = TwoMoonsPaddedDataset(args.n_data, args.data_dim)
+        in_channels = 1
     shape = trainset[0][0].shape
 
     trainloader = data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
@@ -217,6 +221,8 @@ if __name__ == '__main__':
     parser.add_argument('--padding_type', default='none', choices=('none', 'zero', 'gaussian'))
     parser.add_argument('-ow', action='store_true', help="Overwrite data in directory")
     parser.add_argument('--latent_dim', '-ld', type=int, default=10, help="Only applies to traditional VAE")
+    parser.add_argument('--n_data', type=int, default=100000, help="only for synthetic datasets")
+    parser.add_argument('--data_dim', type=int, default=2, help='only for synthetic')
     parser.add_argument('--hidden_size', '-hs', type=str, default="512|256")
 
     best_loss = 0

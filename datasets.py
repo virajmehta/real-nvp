@@ -1,5 +1,7 @@
 import torch
 from torchvision import transforms, datasets
+import sklearn.datasets
+import numpy as np
 
 
 class MNISTGaussianDataset(torch.utils.data.Dataset):
@@ -103,14 +105,36 @@ class CIFAR10GaussianDataset(torch.utils.data.Dataset):
         item = (padded, item[1])
         return item
 
+class TwoMoonsPaddedDataset(torch.utils.data.IterableDataset):
+    def __init__(self, size, test=False, total_dimension=2):
+        self.size = size
+        self.test = test
+        self.total_dimension = total_dimension
+        self.padding_dimension = self.total_dimension - 2
+
+    def __len__(self):
+        return self.size
+
+    def __getitem__(self, index):
+        data = sklearn.datasets.make_moons(n_samples=1, noise=0.1)[0]
+        padding = np.zeros(self.padding_dimension)
+        return np.concatenate([data, padding])
+
 
 def test():
+    tm1 = TwoMoonsPaddedDataset(100)
+    tm_samp = tm1[0]
+    print(f"Two moons data:\n{tm_samp}")
+    tm2 = TwoMoonsPaddedDataset(100, total_dimension=10)
+    tm_samp = tm2[0]
+    print(f"Two moons padded data:\n{tm_samp}")
     gaussian = MNISTGaussianDataset()
     gaussian_data = gaussian[0]
     print(f"Gaussian Padded Data:\n{gaussian_data}")
     zeropad = MNISTZeroDataset()
     zero_data = zeropad[0]
     print(f"Zero Padded Data:\n{zero_data}")
+
 
 
 if __name__ == '__main__':

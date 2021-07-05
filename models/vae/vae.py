@@ -2,26 +2,33 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+import math
 
 
 class VAE(nn.Module):
-    def __init__(self, shape, latent_dim, hidden_size):
+    def __init__(self, shape, latent_dim, hidden_size, output_var=1e-4, keep_prob = 0.99):
         super().__init__()
+        print (latent_dim)
         self.latent_dim = latent_dim
         self.shape = shape
         self.input_size = np.product(shape)
-        self.hidden_size = hidden_size
+        self.hidden_size = [int(item) for item in hidden_size.split("|")]
+        self.output_var = 1e-4
         encoder_layers = [
                 nn.Flatten(),
-                nn.Linear(self.input_size, self.hidden_size),
+                nn.Linear(self.input_size, self.hidden_size[0]),
                 nn.ReLU(),
-                nn.Linear(self.hidden_size, 2 * self.latent_dim),
+                nn.Linear(self.hidden_size[0], self.hidden_size[1]),
+                nn.ReLU(),
+                nn.Linear(self.hidden_size[1], 2 * self.latent_dim),
             ]
         self.encoder = nn.Sequential(*encoder_layers)
         decoder_layers = [
-                nn.Linear(self.latent_dim, self.hidden_size),
+                nn.Linear(self.latent_dim, self.hidden_size[-1]),
                 nn.ReLU(),
-                nn.Linear(self.hidden_size, self.input_size),
+                nn.Linear(self.hidden_size[-1], self.hidden_size[-2]),
+                nn.ReLU(),
+                nn.Linear(self.hidden_size[-2], self.input_size),
                 nn.Sigmoid()
             ]
         self.decoder = nn.Sequential(*decoder_layers)
@@ -47,6 +54,10 @@ class VAE(nn.Module):
         mean, logvar = self.encode(x)
         z = self.reparameterize(mean, logvar)
         x_hat = self.decode(z)
+        if not sample:
+            std_out = math.sqrt(self.output_var)
+            eps = torch.randn_like(x_hat)
+            x_hat = x_hat + std_out * eps
         return x_hat, mean, logvar
 
 

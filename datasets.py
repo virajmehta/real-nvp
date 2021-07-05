@@ -116,7 +116,7 @@ class TwoMoonsPaddedDataset(torch.utils.data.IterableDataset):
         return self.size
 
     def __getitem__(self, index):
-        data = sklearn.datasets.make_moons(n_samples=1, noise=0.1)[0]
+        data = sklearn.datasets.make_moons(n_samples=1, noise=0.1)[0][0, :]
         padding = np.zeros(self.padding_dimension)
         return np.concatenate([data, padding])
 

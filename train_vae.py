@@ -36,6 +36,7 @@ def get_datasets(args):
             in_channels = 2
             trainset = MNISTZeroDataset()
             testset = MNISTZeroDataset(test=True)
+        shape = trainset[0][0].shape
     elif args.dataset == 'cifar10':
         if args.padding_type == 'none':
             in_channels = 3
@@ -61,11 +62,12 @@ def get_datasets(args):
             trainset = CIFAR10GaussianDataset()
             in_channels = 6
             testset = CIFAR10GaussianDataset(test=True)
+        shape = trainset[0][0].shape
     elif args.dataset == '2moons':
         trainset = TwoMoonsPaddedDataset(args.n_data, args.data_dim)
         testset = TwoMoonsPaddedDataset(args.n_data, args.data_dim)
         in_channels = 1
-    shape = trainset[0][0].shape
+        shape = (2,)
 
     trainloader = data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=args.num_workers)
     testloader = data.DataLoader(testset, batch_size=16, shuffle=False, num_workers=args.num_workers)
@@ -121,7 +123,9 @@ def train(epoch, net, trainloader, device, optimizer, loss_fn, max_grad_norm, ba
     logvars = []
     output_vars = []
     with tqdm(total=len(trainloader.dataset)) as progress_bar:
-        for x, _ in trainloader:
+        for x in trainloader:
+            if len(x) == 2 and type(x) is tuple:
+                x = x[0]
             x = x.to(device)
             optimizer.zero_grad()
             x_hat, mu, logvar, output_var = net(x)
@@ -168,7 +172,9 @@ def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base
     net.eval()
     loss_meters = [util.AverageMeter() for _ in range(3)]
     with tqdm(total=len(testloader.dataset)) as progress_bar:
-        for x, _ in testloader:
+        for x in testloader:
+            if len(x) == 2 and type(x) is tuple:
+                x = x[0]
             x = x.to(device)
             with torch.no_grad():
                 x_hat, mu, logvar, output_var = net(x)
@@ -212,7 +218,7 @@ def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='RealNVP on MNIST')
     parser.add_argument('name', help="The name of the experiment. Results go in data/{name}")
-    parser.add_argument('--dataset', choices=['mnist', 'cifar10'], default='mnist')
+    parser.add_argument('--dataset', choices=['mnist', 'cifar10', "2moons"], default='mnist')
     parser.add_argument('--batch_size', default=64, type=int, help='Batch size')
     parser.add_argument('--benchmark', action='store_true', help='Turn on CUDNN benchmarking')
     parser.add_argument('--gpu_ids', default='[0]', type=eval, help='IDs of GPUs to use')

@@ -105,7 +105,7 @@ class CIFAR10GaussianDataset(torch.utils.data.Dataset):
         item = (padded, item[1])
         return item
 
-class TwoMoonsPaddedDataset(torch.utils.data.IterableDataset):
+class TwoMoonsPaddedDataset(torch.utils.data.Dataset):
     def __init__(self, size, test=False, total_dimension=2):
         self.size = size
         self.test = test
@@ -118,7 +118,7 @@ class TwoMoonsPaddedDataset(torch.utils.data.IterableDataset):
     def __getitem__(self, index):
         data = sklearn.datasets.make_moons(n_samples=1, noise=0.1)[0][0, :]
         padding = np.zeros(self.padding_dimension)
-        return np.concatenate([data, padding])
+        return np.concatenate([data, padding]).astype(np.float32)
 
 
 def test():

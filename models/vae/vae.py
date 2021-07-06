@@ -6,14 +6,17 @@ import math
 
 
 class VAE(nn.Module):
-    def __init__(self, shape, latent_dim, hidden_size, output_var=1e-4, keep_prob = 0.99):
+    def __init__(self, shape, latent_dim, hidden_size, output_var=1e-4, tune_var = True):
         super().__init__()
         print (latent_dim)
         self.latent_dim = latent_dim
         self.shape = shape
         self.input_size = np.product(shape)
         self.hidden_size = [int(item) for item in hidden_size.split("|")]
-        self.output_var = 1e-4
+        if tune_var:
+            self.output_var = torch.tensor(1, dtype=torch.float32, requires_grad=True)
+        else:
+            self.output_var = output_var
         encoder_layers = [
                 nn.Flatten(),
                 nn.Linear(self.input_size, self.hidden_size[0]),
@@ -54,21 +57,20 @@ class VAE(nn.Module):
         mean, logvar = self.encode(x)
         z = self.reparameterize(mean, logvar)
         x_hat = self.decode(z)
-        if not sample:
-            std_out = math.sqrt(self.output_var)
-            eps = torch.randn_like(x_hat)
-            x_hat = x_hat + std_out * eps
-        return x_hat, mean, logvar
+        std_out = torch.sqrt(self.output_var)
+        eps = torch.randn_like(x_hat)
+        x_hat = x_hat + std_out * eps
+        return x_hat, mean, logvar, self.output_var
 
 
-def VAELoss(x, x_hat, mean, logvar, output_var=1e-4):
+def VAELoss(x, x_hat, mean, logvar, output_var):
     reconstruction_loss = F.mse_loss(x_hat, x) / output_var
     kld_loss = torch.mean(-0.5 * torch.sum(1 + logvar - mean ** 2 - logvar.exp(), dim=1), dim=0)
     vae_loss = reconstruction_loss + kld_loss
     return vae_loss, kld_loss, reconstruction_loss
 
 
-def VAELossCE(x, x_hat, mean, logvar):
+def VAELossCE(x, x_hat, mean, logvar, output_var):
     eps = 1e-8
     kld_loss = torch.mean(-0.5 * torch.sum(1 + logvar - mean ** 2 - logvar.exp(), dim=1), dim=0)
     ce_loss = torch.sum(-x * torch.log(x_hat + eps) - (1 - x) * torch.log(1 - x_hat + eps))

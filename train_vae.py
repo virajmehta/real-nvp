@@ -109,20 +109,23 @@ def main(args):
     optimizer = optim.Adam(param_groups, lr=args.lr)
 
     for epoch in range(start_epoch, start_epoch + args.num_epochs):
-        train(epoch, net, trainloader, device, optimizer, loss_fn, args.max_grad_norm)
+        if_save = (epoch == start_epoch) or (epoch == start_epoch + args.num_epochs)
+        train(epoch, net, trainloader, device, optimizer, loss_fn, args.max_grad_norm, base_path, save = if_save)
         test(epoch, net, testloader, device, loss_fn, args.num_samples, in_channels, base_path, args)
 
 
-def train(epoch, net, trainloader, device, optimizer, loss_fn, max_grad_norm):
+def train(epoch, net, trainloader, device, optimizer, loss_fn, max_grad_norm, base_path, save = False):
     print('\nEpoch: %d' % epoch)
     net.train()
     loss_meters = [util.AverageMeter() for _ in range(3)]
+    logvars = []
+    output_vars = []
     with tqdm(total=len(trainloader.dataset)) as progress_bar:
         for x, _ in trainloader:
             x = x.to(device)
             optimizer.zero_grad()
-            x_hat, mu, logvar = net(x)
-            loss, reconstruction_loss, kl_loss = loss_fn(x, x_hat, mu, logvar)
+            x_hat, mu, logvar, output_var = net(x)
+            loss, reconstruction_loss, kl_loss = loss_fn(x, x_hat, mu, logvar, output_var)
             loss_meters[0].update(loss.item(), x.size(0))
             loss_meters[1].update(reconstruction_loss.item(), x.size(0))
             loss_meters[2].update(kl_loss.item(), x.size(0))
@@ -134,6 +137,13 @@ def train(epoch, net, trainloader, device, optimizer, loss_fn, max_grad_norm):
                                      rc_loss=loss_meters[1].avg,
                                      kl_loss=loss_meters[2].avg)
             progress_bar.update(x.size(0))
+            logvars.append(logvar.unsqueeze(0))
+            output_vars.append(output_var.unsqueeze(0))
+    if save:
+        logvarfile = 'logvar'+str(epoch)+'.pt'
+        output_varfile = 'output_var'+str(epoch)+'.pt'
+        torch.save(logvars, base_path / logvarfile)
+        torch.save(output_vars, base_path / output_varfile)
 
 
 def sample(net, batch_size, device, in_channels, sample_latent=None):
@@ -161,8 +171,8 @@ def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base
         for x, _ in testloader:
             x = x.to(device)
             with torch.no_grad():
-                x_hat, mu, logvar = net(x)
-                loss, reconstruction_loss, kl_loss = loss_fn(x, x_hat, mu, logvar)
+                x_hat, mu, logvar, output_var = net(x)
+                loss, reconstruction_loss, kl_loss = loss_fn(x, x_hat, mu, logvar, output_var)
                 loss_meters[0].update(loss.item(), x.size(0))
                 loss_meters[1].update(reconstruction_loss.item(), x.size(0))
                 loss_meters[2].update(kl_loss.item(), x.size(0))

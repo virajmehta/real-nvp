@@ -62,8 +62,8 @@ def get_datasets(args):
             in_channels = 6
             testset = CIFAR10GaussianDataset(test=True)
     elif args.dataset == '2moons':
-        trainloader = TwoMoonsPaddedDataset(args.n_data, args.data_dim)
-        testloader = TwoMoonsPaddedDataset(args.n_data, args.data_dim)
+        trainset = TwoMoonsPaddedDataset(args.n_data, args.data_dim)
+        testset = TwoMoonsPaddedDataset(args.n_data, args.data_dim)
         in_channels = 1
     shape = trainset[0][0].shape
 

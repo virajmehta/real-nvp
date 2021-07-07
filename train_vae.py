@@ -111,7 +111,7 @@ def main(args):
     optimizer = optim.Adam(param_groups, lr=args.lr)
 
     for epoch in range(start_epoch, start_epoch + args.num_epochs):
-        if_save = (epoch == start_epoch) or (epoch == start_epoch + args.num_epochs)
+        if_save = (epoch == start_epoch) or (epoch == start_epoch + args.num_epochs - 1)
         train(epoch, net, trainloader, device, optimizer, loss_fn, args.max_grad_norm, base_path, save = if_save)
         test(epoch, net, testloader, device, loss_fn, args.num_samples, in_channels, base_path, args)
 
@@ -123,7 +123,7 @@ def train(epoch, net, trainloader, device, optimizer, loss_fn, max_grad_norm, ba
     logvars = []
     output_vars = []
     with tqdm(total=len(trainloader.dataset)) as progress_bar:
-        for x in trainloader:
+        for x, _ in trainloader:
             if len(x) == 2 and type(x) is tuple:
                 x = x[0]
             x = x.to(device)
@@ -172,7 +172,7 @@ def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base
     net.eval()
     loss_meters = [util.AverageMeter() for _ in range(3)]
     with tqdm(total=len(testloader.dataset)) as progress_bar:
-        for x in testloader:
+        for x, _ in testloader:
             if len(x) == 2 and type(x) is tuple:
                 x = x[0]
             x = x.to(device)

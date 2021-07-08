@@ -9,6 +9,7 @@ import torch.backends.cudnn as cudnn
 import torch.utils.data as data
 import torchvision
 import torchvision.transforms as transforms
+import pickle
 import numpy as np
 from torchvision import datasets
 import util
@@ -111,7 +112,7 @@ def train(epoch, net, trainloader, device, optimizer, loss_fn, max_grad_norm):
             x = x.to(device)
             optimizer.zero_grad()
             z, sldj = net(x, reverse=False)
-            loss = loss_fn(z, sldj)
+            loss = loss_fn(x, z, sldj)
             loss_meter.update(loss.item(), x.size(0))
             loss.backward()
             util.clip_grad_norm(optimizer, max_grad_norm)
@@ -140,6 +141,7 @@ def sample(net, batch_size, device, in_channels):
 def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base_path):
     global best_loss
     global mean_conds
+    global hists
     net.eval()
     loss_meter = util.AverageMeter()
     with tqdm(total=len(testloader.dataset)) as progress_bar:
@@ -147,22 +149,22 @@ def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base
             x = x.to(device)
             with torch.no_grad():
                 z, sldj = net(x, reverse=False)
-                loss = loss_fn(z, sldj)
+                loss = loss_fn(x, z, sldj)
                 loss_meter.update(loss.item(), x.size(0))
                 progress_bar.set_postfix(loss=loss_meter.avg,
                                          bpd=util.bits_per_dim(x, loss_meter.avg))
                 progress_bar.update(x.size(0))
 
     conds = []
-    for i in trange(x.shape[0]):
-        jac = jacobian(net, x[i:i+1, ...])[0]
-        side = jac.shape[2]
-        channels = jac.shape[1]
-        jac = jac.reshape((channels * side * side, channels * side * side))
-        cond = np.linalg.cond(jac.cpu().numpy())
-        conds.append(cond)
-    mean_conds.append(np.mean(conds))
-    print(f"Mean of Condition Numbers: {mean_conds[-1]}")
+    # for i in trange(x.shape[0]):
+    #     jac = jacobian(net, x[i:i+1, ...])[0]
+    #     side = jac.shape[2]
+    #     channels = jac.shape[1]
+    #     jac = jac.reshape((channels * side * side, channels * side * side))
+    #     cond = np.linalg.cond(jac.cpu().numpy())
+    #     conds.append(cond)
+    # mean_conds.append(np.mean(conds))
+    # print(f"Mean of Condition Numbers: {mean_conds[-1]}")
 
     # Save checkpoint
     if loss_meter.avg < best_loss:
@@ -184,6 +186,12 @@ def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base
         images = images[:, :1, :, :]
     if images.shape[1] == 6:
         images = images[:, :3, :, :]
+    image_vals = images.detach().cpu().numpy().flatten()
+    hist = np.histogram(image_vals, bins=100)
+    hists.append(hist)
+    hists_path = base_path / 'hists.pkl'
+    with hists_path.open('wb') as f:
+        pickle.dump(hists, f)
     samples_path = base_path / 'samples'
     samples_path.mkdir(exist_ok=True)
     epoch_path = samples_path / f'epoch_{epoch}.png'
@@ -215,5 +223,6 @@ if __name__ == '__main__':
 
     best_loss = 0
     mean_conds = []
+    hists = []
 
     main(parser.parse_args())

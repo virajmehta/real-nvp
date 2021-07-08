@@ -10,6 +10,7 @@ import torch.utils.data as data
 import torchvision
 import torchvision.transforms as transforms
 import numpy as np
+import pickle
 from torchvision import datasets
 import util
 from datasets import MNISTZeroDataset, MNISTGaussianDataset, CIFAR10ZeroDataset, CIFAR10GaussianDataset, TwoMoonsPaddedDataset
@@ -124,7 +125,7 @@ def train(epoch, net, trainloader, device, optimizer, loss_fn, max_grad_norm, ba
     output_vars = []
     with tqdm(total=len(trainloader.dataset)) as progress_bar:
         for x in trainloader:
-            if len(x) == 2 and type(x) is tuple:
+            if len(x) == 2 and type(x) is list:
                 x = x[0]
             x = x.to(device)
             optimizer.zero_grad()
@@ -169,11 +170,12 @@ def sample(net, batch_size, device, in_channels, sample_latent=None):
 
 def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base_path, args):
     global best_loss
+    global hists
     net.eval()
     loss_meters = [util.AverageMeter() for _ in range(3)]
     with tqdm(total=len(testloader.dataset)) as progress_bar:
         for x in testloader:
-            if len(x) == 2 and type(x) is tuple:
+            if len(x) == 2 and type(x) is list:
                 x = x[0]
             x = x.to(device)
             with torch.no_grad():
@@ -208,6 +210,12 @@ def test(epoch, net, testloader, device, loss_fn, num_samples, in_channels, base
         images = images[:, :1, :, :]
     if images.shape[1] == 6:
         images = images[:, :3, :, :]
+    image_vals = images.detach().cpu().numpy().flatten()
+    hist = np.histogram(image_vals, bins=100)
+    hists.append(hist)
+    hists_path = base_path / 'hists.pkl'
+    with hists_path.open('wb') as f:
+        pickle.dump(hists, f)
     samples_path = base_path / 'samples'
     samples_path.mkdir(exist_ok=True)
     epoch_path = samples_path / f'epoch_{epoch}.png'
@@ -242,5 +250,6 @@ if __name__ == '__main__':
     parser.add_argument('--hidden_size', '-hs', type=str, default="512|256")
 
     best_loss = 0
+    hists = []
 
     main(parser.parse_args())

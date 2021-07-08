@@ -112,7 +112,7 @@ def main(args):
     optimizer = optim.Adam(param_groups, lr=args.lr)
 
     for epoch in range(start_epoch, start_epoch + args.num_epochs):
-        if_save = (epoch == start_epoch) or (epoch == start_epoch + args.num_epochs)
+        if_save = (epoch == start_epoch) or (epoch == start_epoch + args.num_epochs - 1)
         train(epoch, net, trainloader, device, optimizer, loss_fn, args.max_grad_norm, base_path, save = if_save)
         test(epoch, net, testloader, device, loss_fn, args.num_samples, in_channels, base_path, args)
 

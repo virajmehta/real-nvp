@@ -14,7 +14,7 @@ class VAE(nn.Module):
         self.input_size = np.product(shape)
         self.hidden_size = [int(item) for item in hidden_size.split("|")]
         if tune_var:
-            self.output_var = torch.tensor(1, dtype=torch.float32, requires_grad=True)
+            self.output_var = torch.tensor(0.0001, dtype=torch.float32, requires_grad=True)
         else:
             self.output_var = output_var
         encoder_layers = [
@@ -67,7 +67,7 @@ def VAELoss(x, x_hat, mean, logvar, output_var):
     reconstruction_loss = F.mse_loss(x_hat, x) / output_var
     kld_loss = torch.mean(-0.5 * torch.sum(1 + logvar - mean ** 2 - logvar.exp(), dim=1), dim=0)
     vae_loss = reconstruction_loss + kld_loss
-    return vae_loss, kld_loss, reconstruction_loss
+    return vae_loss, kld_loss, reconstruction_loss,
 
 
 def VAELossCE(x, x_hat, mean, logvar, output_var):
